@@ -108,24 +108,35 @@ def send_to_openclaw(
     token: str,
     message: str,
     session_user: str,
+    max_retries: int = 3,
 ) -> str:
     """Send a message to OpenClaw, maintaining session via the user field."""
-    resp = requests.post(
-        f"{gateway_url}/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": "default",
-            "stream": False,
-            "user": session_user,
-            "messages": [{"role": "user", "content": message}],
-        },
-        timeout=180,
-    )
-    resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]
+    for attempt in range(max_retries + 1):
+        try:
+            resp = requests.post(
+                f"{gateway_url}/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "default",
+                    "stream": False,
+                    "user": session_user,
+                    "messages": [{"role": "user", "content": message}],
+                },
+                timeout=180,
+            )
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"]
+        except Exception as e:
+            if attempt < max_retries:
+                wait = 2 ** attempt
+                print(f"  [retry] send_to_openclaw failed (attempt {attempt + 1}/{max_retries + 1}): {e}")
+                print(f"  [retry] retrying in {wait}s...")
+                time.sleep(wait)
+            else:
+                raise
 
 
 def generate_teacher_message(
@@ -133,6 +144,7 @@ def generate_teacher_message(
     model: str,
     problem_index: int,
     conversation_history: list[dict],
+    max_retries: int = 3,
 ) -> str:
     """Have the teacher LLM decide what to say next."""
     filename = f"homework/{problem_index}.txt"
@@ -141,8 +153,18 @@ def generate_teacher_message(
         {"role": "system", "content": system},
         *conversation_history,
     ]
-    resp = client.chat.completions.create(model=model, messages=messages)
-    return strip_thinking(resp.choices[0].message.content)
+    for attempt in range(max_retries + 1):
+        try:
+            resp = client.chat.completions.create(model=model, messages=messages)
+            return strip_thinking(resp.choices[0].message.content)
+        except Exception as e:
+            if attempt < max_retries:
+                wait = 2 ** attempt
+                print(f"  [retry] generate_teacher_message failed (attempt {attempt + 1}/{max_retries + 1}): {e}")
+                print(f"  [retry] retrying in {wait}s...")
+                time.sleep(wait)
+            else:
+                raise
 
 
 def run_one_grading(
@@ -154,6 +176,8 @@ def run_one_grading(
     external_client: OpenAI,
     model: str,
     max_turns: int,
+    max_retries: int = 3,
+    output_file: str = "",
 ) -> bool:
     """Run a single grading session. Returns True if completed."""
     session_user = f"teacher-grade-{problem_index}-{os.getpid()}"
@@ -174,6 +198,7 @@ def run_one_grading(
         else:
             teacher_msg = generate_teacher_message(
                 external_client, model, problem_index, conversation_history,
+                max_retries=max_retries,
             )
 
         if DONE_SENTINEL in teacher_msg:
@@ -189,8 +214,13 @@ def run_one_grading(
 
         conversation_history.append({"role": "assistant", "content": teacher_msg})
 
-        openclaw_reply = send_to_openclaw(gateway_url, gateway_token, teacher_msg, session_user)
+        openclaw_reply = send_to_openclaw(gateway_url, gateway_token, teacher_msg, session_user, max_retries=max_retries)
         print(f"  << OpenClaw -> Teacher:\n  {openclaw_reply}\n")
+
+        if output_file and turn == 0:
+            with open(output_file, "a", encoding="utf-8") as f:
+                f.write(f"[session: {session_user}]\n")
+                f.write(f"{openclaw_reply}\n\n")
 
         conversation_history.append({
             "role": "user",
@@ -206,6 +236,8 @@ def main():
     parser.add_argument("--dataset", type=str, required=True, help="Path to GSM8K.json")
     parser.add_argument("--num-problems", type=int, default=5, help="Number of problems to grade (default: 5)")
     parser.add_argument("--max-turns", type=int, default=8, help="Max turns per problem (default: 8)")
+    parser.add_argument("--max-retries", type=int, default=3, help="Max retries per network call (default: 3)")
+    parser.add_argument("--output", type=str, default="results.txt", help="Output file for OpenClaw replies (default: results.txt)")
     args = parser.parse_args()
 
     gateway_token = get_env_or_exit("OPENCLAW_GATEWAY_TOKEN")
@@ -219,7 +251,10 @@ def main():
     problems = load_dataset(args.dataset)
     count = min(args.num_problems, len(problems))
     print(f"Loaded {len(problems)} problems from {args.dataset}")
-    print(f"Grading {count} problems, max {args.max_turns} turns each\n")
+    print(f"Grading {count} problems, max {args.max_turns} turns each, max {args.max_retries} retries\n")
+
+    open(args.output, "w").close()
+    print(f"Output file: {args.output} (cleared)\n")
 
     results = []
     for i in range(count):
@@ -234,6 +269,8 @@ def main():
             external_client=external_client,
             model=model,
             max_turns=args.max_turns,
+            max_retries=args.max_retries,
+            output_file=args.output,
         )
         results.append(completed)
 
