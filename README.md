@@ -245,7 +245,25 @@ For detailed environment setup, see [Slime](https://github.com/THUDM/slime) or [
 
 #### Don't have a GPU?
 
+**Option 1: Tinker**
+
 Create a [Tinker API](https://thinkingmachines.ai/tinker/). That's all you need. But note that Tinker only supports LoRA, which may not be as effective as full fine-tuning. So we are still testing it.
+
+**Option 2: Fireworks Training SDK**
+
+Use the [Fireworks Training SDK](https://fireworks.ai) for fully remote training and inference -- no local GPUs needed. Supports full-parameter and LoRA training.
+
+```bash
+cd openclaw-fireworks
+source .venv/bin/activate
+
+FIREWORKS_API_KEY="your-key" \
+BASE_MODEL="accounts/fireworks/models/qwen3-8b" \
+TRAINING_SHAPE_ID="accounts/fireworks/trainingShapes/qwen3-8b-128k" \
+python run_openclaw_fireworks.py
+```
+
+See [`./openclaw-fireworks/README.md`](./openclaw-fireworks/README.md) for setup details.
 
 
 
@@ -293,6 +311,16 @@ python run.py --method combine --model-name Qwen/Qwen3-8B --batch-size 16 --prm-
 ```
 
 see [`./openclaw-tinker/README.md`](./openclaw-tinker/README.md) for setup details.
+
+<a id="combinemethodfireworks"></a>
+**With Fireworks** (No GPUs at all)
+```bash
+cd openclaw-fireworks
+source .venv/bin/activate
+FIREWORKS_API_KEY="your-key" W_OPD=1.0 W_RL=1.0 python run_openclaw_fireworks.py
+```
+
+see [`./openclaw-fireworks/README.md`](./openclaw-fireworks/README.md) for setup details.
 
 </details>
 
