@@ -43,6 +43,7 @@
 
 ## 📰 News
 
+- **[2026/4/15]** 🛠️ The mismatch between inference and training engines has been resolved now.
 - **[2026/4/11]** ✨ Qwen3.5 4B/9B/27B is supported now, both text and multi-modal!
 - **[2026/4/4]** 👨‍👦‍👦 We support optimizing a single model based on feedback from a group of people.
 - **[2026/3/25]** 🙌 We sincerely thank [Tinker](https://thinkingmachines.ai/tinker/) for its generous support of this project, which has enabled more experiments and faster iteration.
