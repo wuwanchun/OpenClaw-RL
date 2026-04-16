@@ -11,7 +11,7 @@ from env_client import TerminalEnvClient
 logger = logging.getLogger(__name__)
 
 
-class RolloutRunner:
+class AgentRunner:
     def __init__(
         self,
         *,

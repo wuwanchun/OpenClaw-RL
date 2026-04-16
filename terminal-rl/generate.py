@@ -11,7 +11,7 @@ from slime.utils.types import Sample
 from rollout_agent import create_prm_agent, create_rollout_agent
 from custom_types import RunContext, TaskTimeouts
 from env_client import create_env_client
-from rollout_runner import RolloutRunner
+from agent_runner import AgentRunner
 from sample_builders import build_non_trainable_sample, build_samples_from_outcome
 
 logger = logging.getLogger(__name__)
@@ -145,7 +145,7 @@ async def generate(
                 sampling_params=sampling_params,
                 model_type=getattr(args, "model_type", "Qwen3"),
             )
-            runner = RolloutRunner(
+            runner = AgentRunner(
                 rollout_agent=rollout_agent,
                 tool_schemas=tool_schemas,
                 env_client=env_client,

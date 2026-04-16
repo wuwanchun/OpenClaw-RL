@@ -5,8 +5,6 @@ from pathlib import Path
 from typing import Any, Optional, List, Dict
 import uuid
 
-from slime.utils.types import Sample
-
 
 @dataclass(frozen=True)
 class RunContext:
@@ -16,7 +14,7 @@ class RunContext:
     log_dir: Path
 
     def run_identity(self) -> str:
-        return f"{self.uid}:{self.group_index}:{self.sample_index}"
+        return f"{self.uid}.{self.group_index}.{self.sample_index}"
 
     def to_payload(self) -> dict[str, Any]:
         return {
