@@ -149,7 +149,7 @@ This will:
 1. Write 36 GSM8K problems to `homework/0.txt` through `homework/35.txt` in the workspace.
 2. For each problem, run a multi-turn conversation where the student LLM asks the OpenClaw agent to solve it.
 3. Print a summary of how many problems were completed within the turn limit.
-4. Return a [results.txt](https://github.com/Gen-Verse/OpenClaw-RL/blob/main/openclaw-test/results.txt) which records the OpenClaw's first output in each session.
+4. Return a results.txt which records the OpenClaw's first output in each session. For example, [results.txt](https://github.com/Gen-Verse/OpenClaw-RL/blob/main/openclaw-test/results.txt) records the transition of output pattern when using [run_qwen3_4b_openclaw_combine.sh](https://github.com/Gen-Verse/OpenClaw-RL/blob/main/openclaw-combine/run_qwen3_4b_openclaw_combine.sh).
 
 
 
