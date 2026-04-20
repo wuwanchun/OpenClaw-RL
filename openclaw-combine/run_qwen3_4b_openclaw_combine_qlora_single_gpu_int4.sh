@@ -12,15 +12,18 @@ export OPENAI_API_KEY=""
 export OPENCLAW_GATEWAY_URL=""
 export OPENCLAW_WORKSPACE="$HOME/.openclaw/workspace"
 export OPENAI_BASE_URL=""   # point to your external LLM
-export EXTERNAL_MODEL=""            # model name for the external LLM
+export EXTERNAL_MODEL=""    # model name for the external LLM
+export SLIME_TRAIN_MAX_SEQ_LEN=4096 # truncation will happen if context + response exceed this length
+export SGLANG_ENABLE_LOGITS_PROCESSER_CHUNK=True
+export SGLANG_LOGITS_PROCESSER_CHUNK_SIZE=128 # to avoid OOM with long context + response in INT4
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 SLIME_ROOT="$(cd -- "${SCRIPT_DIR}/../slime" &>/dev/null && pwd)"
-export SLIME_TRAIN_MAX_SEQ_LEN=4096 # truncation will happen if context + response exceed this length
+
 NUM_GPUS=${NUM_GPUS:-1}
 ACTOR_GPUS=${ACTOR_GPUS:-1}
 ROLLOUT_GPUS=${ROLLOUT_GPUS:-1}
 
-# For bitsandbytes QLoRA, use the original HF checkpoint (do NOT use pre-converted compressed-tensors INT4 dir).
+# For bitsandbytes QLoRA, use the original HF checkpoint (do NOT use INT4 dir).
 HF_CKPT=${HF_CKPT:-to/models/Qwen3-4B}
 REF_LOAD=${REF_LOAD:-${HF_CKPT}}
 SAVE_CKPT=${SAVE_CKPT:-/root/shared-nvme/OpenClaw-RL/models/qwen3_4b_openclaw_combine_single_gpu_int4_qlora_ckpt}
@@ -49,8 +52,6 @@ export TRAIN_EPOCHS="${TRAIN_EPOCHS:-1}"
 export PRM_M="${PRM_M:-1}"
 export OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY="${OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY:-1}"
 
-export SGLANG_ENABLE_LOGITS_PROCESSER_CHUNK=True
-export SGLANG_LOGITS_PROCESSER_CHUNK_SIZE=128 # to avoid OOM with long context + response in INT4
 ray stop --force || true
 pkill -9 sglang || true
 pkill -9 ray || true
@@ -175,8 +176,6 @@ ray job submit --address="http://127.0.0.1:8265" \
   --train-backend fsdp \
   --offload-rollout \
   --actor-num-nodes 1 \
-#   --save-debug-rollout-data debug/data_{rollout_id}.pt \
-#   --load-debug-rollout-data debug/data_{rollout_id}.pt \
   --actor-num-gpus-per-node "${ACTOR_GPUS}" \
   --rollout-num-gpus "${ROLLOUT_GPUS}" \
   --num-gpus-per-node "${NUM_GPUS}" \
