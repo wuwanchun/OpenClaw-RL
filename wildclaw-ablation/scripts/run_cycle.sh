@@ -52,6 +52,11 @@ COLLECT_MODEL="${BASE_MODEL:-${SIZE_NAME}-base}"
 RUN_NAME=collect_base ROLLOUTS_PER_TASK="${ROLLOUTS_PER_TASK}" \
   bash "${ABLATION_ROOT}/scripts/run_tasks.sh" train "local/${COLLECT_MODEL}" 0
 
+# 进化器 LLM 默认复用本地 sglang 服务；不配则只剩启发式兜底（易全 skip）
+export SKILL_LLM_API_BASE="${SKILL_LLM_API_BASE:-http://127.0.0.1:${PORT:-8000}/v1}"
+export SKILL_LLM_MODEL="${SKILL_LLM_MODEL:-${COLLECT_MODEL}}"
+echo "[cycle] evolver LLM: ${SKILL_LLM_API_BASE} model=${SKILL_LLM_MODEL}"
+
 echo "== [3/6] skill evolution round =="
 python3 -m skill_evolve.run_round \
   --raw-dir "${ABLATION_ROOT}/results/collect_base/raw" \
