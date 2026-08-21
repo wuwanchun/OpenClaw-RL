@@ -58,6 +58,8 @@ export SKILL_LLM_MODEL="${SKILL_LLM_MODEL:-${COLLECT_MODEL}}"
 echo "[cycle] evolver LLM: ${SKILL_LLM_API_BASE} model=${SKILL_LLM_MODEL}"
 
 echo "== [3/6] skill evolution round =="
+# cwd 是 WCB_ROOT，skill_evolve 包在仓库里，必须显式给 PYTHONPATH
+PYTHONPATH="${REPO_ROOT}/slime-coding-agent${PYTHONPATH:+:${PYTHONPATH}}" \
 python3 -m skill_evolve.run_round \
   --raw-dir "${ABLATION_ROOT}/results/collect_base/raw" \
   --skills-dir "${ABLATION_ROOT}/skills" \

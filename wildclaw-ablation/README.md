@@ -1,7 +1,11 @@
 # WildClawBench Ablation: Base / RL / Skill / RL+Skill
 
-四组消融在 WildClawBench **纯文本子集**（37 个任务：01/03/04/06 类）上对比
-“参数进化”与“经验进化”的贡献。纯文本模型不跑 02/05 多模态任务。
+四组消融在 WildClawBench **离线纯文本子集**（17 个任务：01/03/06 类，
+剔除多模态与联网依赖任务）上对比“参数进化”与“经验进化”的贡献。
+纯文本模型不跑 02/05 多模态任务；无搜索 key 时 04 检索类与散布在
+01/06 里的联网任务（`## Skills` 段含 agent-browser，或 Prompt 显式要求
+联网的）由 `make_split.py` 自动排除并记录在 split.json 的
+`excluded_web` 字段，`--include-web` 可关闭该过滤。
 
 ## 变体
 
@@ -33,7 +37,24 @@ hf download internlm/WildClawBench workspace --repo-type dataset --local-dir .
 ```
 
 跳过 `script/prepare.sh`（YouTube 视频与 SAM3 权重只服务 02/05 多模态任务）。
-检索类任务需要 `BRAVE_API_KEY`，没有就先跑 01/03/06。
+检索类（04）与联网依赖任务需要搜索 API key，没有就先跑离线子集
+（默认行为）；配好 key 后用 `WCB_CATEGORIES="... 04_Search_Retrieval"` +
+`make_split.py --include-web` 加回。
+
+## 两个窗口的最简跑法
+
+```bash
+# 窗口 1：模型服务（sglang 后台跑，日志在 results/logs/）
+bash scripts/w1_server.sh            # 默认 base 8b；down 停止
+
+# 窗口 2：消融闭环（自动激活 WCB venv；BG=1 后台跑）
+BG=1 bash scripts/w2_cycle.sh
+```
+
+两个脚本都 source `scripts/env.sh`——目录布局（`ABLATION_ROOT` /
+`WCB_ROOT`）与全部环境变量（`SIZE` / `MODE` / `ROLLOUTS_PER_TASK` /
+`PORT` / `SKILL_LLM_*`）的默认值集中在那里，按需覆盖，例如
+`SIZE=4b MODE=full DO_TRAIN=1 bash scripts/w2_cycle.sh`。
 
 ## 模型 endpoint
 
@@ -192,7 +213,9 @@ python $ABLATION_ROOT/scripts/compare_results.py \
 
 ## 口径声明（写报告时用）
 
-- 子集 = 01/03/04/06（37 任务，纯文本）；不含 02/05 多模态。
+- 子集 = 01/03/06 类中的离线纯文本任务（17 个：train 11 / eval 6）；
+  不含 02/05 多模态、04 检索类，以及 8 个联网依赖任务
+  （01_task_1/2/3/4/5/7/9、06_task_1，明细见 split.json `excluded_web`）。
 - 分数是 WildClawBench 官方 grading（per-metric 0-1 + overall_score），
-  子集 overall 为 37 任务均值，**不与官方 60 任务榜单直接可比**。
+  子集 overall 为子集内任务均值，**不与官方 60 任务榜单直接可比**。
 - 每组 `--parallel 4`，judge 用官方默认模型；如需无 judge 口径另报。
