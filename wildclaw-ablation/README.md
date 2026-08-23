@@ -69,9 +69,11 @@ cp configs/my_api.template.json configs/my_api.json
 每个变体只改两样东西：endpoint 后面的模型名（base ckpt 或 RL ckpt 各起
 一个 served model name）、是否注入 skills。
 
-模板在 provider 级声明了 `contextWindow: 32768` / `maxTokens: 8192`：
+模板在每个模型条目上声明了 `contextWindow: 32768` / `maxTokens: 8192`：
 openclaw 对未知模型名的兜底 context 很小，不声明会在多轮后报
 `Context overflow: prompt too large` 并提前退出（任务零产出全 0 分）。
+注意镜像里的 openclaw 版本较旧，只认 **model 级**字段，provider 级的
+`contextWindow`/`maxTokens` 会被判为非法配置。
 `up.sh` 在模板比 `configs/my_api.json` 新时会自动重渲染；手改过
 my_api.json 又想回模板默认值就删掉它再跑一次 up.sh。
 
