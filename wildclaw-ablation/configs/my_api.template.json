@@ -4,6 +4,8 @@
       "baseUrl": "http://host.docker.internal:8000/v1",
       "apiKey": "${LOCAL_API_KEY}",
       "api": "openai-completions",
+      "contextWindow": 32768,
+      "maxTokens": 8192,
       "models": [
         {
           "id": "qwen3-0p6b-base",

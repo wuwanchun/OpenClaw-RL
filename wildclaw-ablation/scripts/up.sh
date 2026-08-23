@@ -97,7 +97,7 @@ fi
 
 # ---------- render my_api.json ----------
 MODELS_CONFIG="${ABLATION_ROOT}/configs/my_api.json"
-if [[ ! -f "${MODELS_CONFIG}" ]]; then
+if [[ ! -f "${MODELS_CONFIG}" || "${ABLATION_ROOT}/configs/my_api.template.json" -nt "${MODELS_CONFIG}" ]]; then
   log "rendering ${MODELS_CONFIG} from template"
   sed -e "s#http://host.docker.internal:8000/v1#http://host.docker.internal:${PORT}/v1#" \
       -e "s#\${LOCAL_API_KEY}#${LOCAL_API_KEY:-none}#" \
