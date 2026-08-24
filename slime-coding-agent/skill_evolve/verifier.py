@@ -46,6 +46,13 @@ def verify(candidate: dict[str, Any], sessions: list[dict[str, Any]]) -> dict[st
     skill_md = str(candidate.get("skill_md", ""))
     evidence_text = "\n".join(s.get("trajectory", "")[:800] for s in sessions[:4])
 
+    # 结构门：SKILL.md 必须带 YAML frontmatter（name/description），
+    # 否则 openclaw 加载时直接忽略，技能注入等于零
+    head = skill_md.lstrip()
+    if not (head.startswith("---") and "name:" in head[:400] and "description:" in head[:400]):
+        return {"accepted": False, "score": 0.0,
+                "reason": "missing YAML frontmatter with name/description"}
+
     if llm.is_configured():
         user = (
             f"## Candidate skill\n{skill_md[:6000]}\n\n"

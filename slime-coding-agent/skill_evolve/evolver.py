@@ -43,8 +43,22 @@ Rules:
 - Successful sessions define invariants: parts that work and must not change.
 - Failed sessions define targets: specific behaviors to correct.
 - Choose "refine" only when failures trace to the skill's guidance.
-- Choose "create" only when no-skill failures share a teachable, recurring procedure.
-- Choose "skip" when evidence is weak or failures come from environment/model limits.
+- Choose "create" when no-skill failures share a teachable, recurring procedure.
+  IMPORTANT: weak-model failures are usually procedural, not fundamental:
+  not reading available skill docs, writing outputs to the wrong path,
+  calling the wrong tool, looping on the same action, giving up without
+  trying tools. All of these are teachable — that is what skills are for.
+- Prefer a small, concrete skill over skip: when to trigger, a 3-7 step
+  procedure, and how to validate success.
+- Choose "skip" ONLY for pure infrastructure failures (network down, OOM,
+  container crash) with no procedural lesson.
+
+The skill_md must be a complete SKILL.md that STARTS with YAML frontmatter:
+---
+name: <kebab-case-name>
+description: <one line: what it does and when to use it>
+---
+followed by the instructions in Markdown.
 
 Return EXACTLY one JSON object:
 {"action": "refine|create|skip",
@@ -89,6 +103,10 @@ def _heuristic_new_skill(sessions: list[dict[str, Any]]) -> dict[str, Any] | Non
         return None
     task_ids = ", ".join(s["task_id"] for s in failed[:4])
     skill_md = (
+        "---\n"
+        "name: failure-recovery-notes\n"
+        "description: Recover from tool/IO failures by checking inputs and rerunning the smallest failing step.\n"
+        "---\n\n"
         "# Failure Recovery Notes\n\n"
         "## Trigger\n"
         f"Recurring failures observed in tasks: {task_ids}.\n\n"
