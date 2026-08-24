@@ -18,8 +18,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from skill_evolve import grouper, judge, sessions as session_mod
-from skill_evolve.evolver import evolve_group, set_debug_dir
+from skill_evolve import grouper, judge, llm, sessions as session_mod
+from skill_evolve.evolver import LAST_LLM_STATUS, evolve_group, set_debug_dir
 from skill_evolve.store import EvolvingSkillStore
 from skill_evolve.verifier import verify
 
@@ -38,6 +38,11 @@ def main() -> None:
     skills_root = Path(args.skills_dir)
     store = EvolvingSkillStore(skills_root)
 
+    report_path = Path(args.report)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    # LLM 原始输出落盘，便于诊断解析失败（必须在进化循环之前设置，否则永远不生效）
+    set_debug_dir(str(report_path.parent / "evolve_debug"))
+
     sessions = session_mod.build_sessions(args.raw_dir, skills_root)
     judged = judge.backfill_scores(sessions)
     groups = grouper.group_sessions(sessions)
@@ -45,6 +50,7 @@ def main() -> None:
     report = {
         "sessions": len(sessions),
         "llm_judged": judged,
+        "llm_configured": llm.is_configured(),
         "groups": {k: len(v) for k, v in groups.items()},
         "decisions": [],
     }
@@ -56,7 +62,9 @@ def main() -> None:
 
         candidate = evolve_group(name, group, current, history)
         if candidate is None:
-            report["decisions"].append({"group": name, "action": "skip"})
+            report["decisions"].append(
+                {"group": name, "action": "skip", "llm": LAST_LLM_STATUS.get(name)}
+            )
             continue
 
         gate = verify(candidate, group)
@@ -74,10 +82,6 @@ def main() -> None:
              "skill": skill_name, "version": version, "reason": gate["reason"]}
         )
 
-    report_path = Path(args.report)
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    # LLM 原始输出落盘，便于诊断解析失败
-    set_debug_dir(str(report_path.parent / "evolve_debug"))
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False, indent=2))
 

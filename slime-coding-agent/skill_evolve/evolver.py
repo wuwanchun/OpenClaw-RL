@@ -18,6 +18,9 @@ _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 _DEBUG_DIR = ""
 
+# 每组最近一次 LLM 调用状态，供 run_round 诊断"skip 是模型判的还是根本没调到"
+LAST_LLM_STATUS: dict[str, dict] = {}
+
 
 def set_debug_dir(path: str) -> None:
     global _DEBUG_DIR
@@ -117,6 +120,7 @@ def evolve_group(
     is_new = current_skill is None
 
     if not llm.is_configured():
+        LAST_LLM_STATUS[name] = {"configured": False, "responded": False}
         if is_new:
             return _heuristic_new_skill(sessions)
         return None  # never refine without LLM judgment
@@ -133,6 +137,11 @@ def evolve_group(
         f"## Sessions\n{_format_evidence(sessions)}"
     )
     raw = llm.chat(_SYSTEM, user)
+    LAST_LLM_STATUS[name] = {
+        "configured": True,
+        "responded": raw is not None,
+        "raw_len": len(raw or ""),
+    }
     result = _parse(raw)
     # 解析失败时把原始输出存下来，便于诊断
     if result is None:

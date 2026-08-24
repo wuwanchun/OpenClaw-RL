@@ -36,6 +36,37 @@ def extract_scores(summary: dict) -> dict:
     return out
 
 
+def aggregate_raw(variant_dir: Path) -> dict:
+    """Fallback: aggregate per-run score.json files under raw/**/score.json.
+
+    Layout: raw/openclaw/<category>/<task>/<run_id>/score.json.
+    Per-task mean across rollouts first, then macro-average across tasks
+    (so tasks with more rollouts don't dominate).
+    """
+    per_task: dict[tuple[str, str], list[float]] = {}
+    for score_path in variant_dir.rglob("score.json"):
+        try:
+            data = json.loads(score_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        score = data.get("overall_score")
+        if score is None:
+            continue
+        parts = score_path.parts
+        category = parts[-4] if len(parts) >= 4 else "unknown"
+        task = parts[-3] if len(parts) >= 3 else score_path.parent.name
+        per_task.setdefault((category, task), []).append(float(score))
+
+    per_cat: dict[str, list[float]] = {}
+    for (cat, _task), scores in per_task.items():
+        per_cat.setdefault(cat, []).append(round(sum(scores) / len(scores), 4))
+
+    out = {cat: round(sum(v) / len(v), 4) for cat, v in per_cat.items()}
+    if out:
+        out["overall"] = round(sum(out.values()) / len(out), 4)
+    return out
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--results-dir", required=True)
@@ -48,7 +79,13 @@ def main() -> None:
         root.mkdir(parents=True, exist_ok=True)
     for variant_dir in sorted(p for p in root.iterdir() if p.is_dir()):
         summary = load_summary(variant_dir / "summary_all.json")
-        table[variant_dir.name] = extract_scores(summary)
+        scores = extract_scores(summary)
+        if not scores:
+            # 单任务模式不产生 summary_all.json，从 raw/**/score.json 聚合
+            scores = aggregate_raw(variant_dir)
+        if not scores:
+            continue  # 跳过 logs/ 等无分数目录
+        table[variant_dir.name] = scores
 
     categories = sorted({cat for scores in table.values() for cat in scores if cat != "overall"})
     rows = []
