@@ -139,8 +139,8 @@ SIZE=8b bash scripts/run_variant.sh base
 
 ## Skill 注入方式
 
-用官方 `--lobster-workspace` 机制：`run_variant.sh` 会把
-`slime-coding-agent/skills/generated/*.md` 组装成
+用官方 `--lobster-workspace` 机制：`run_variant.sh` 会把进化器发布的
+`wildclaw-ablation/skills/<name>/SKILL.md`（EvolvingSkillStore 布局）组装成
 `results/<variant>/lobster_workspace/.openclaw/skills/<name>/SKILL.md`，
 harness 启动任务容器时整个工作区被拷进容器 `/root/`。
 
