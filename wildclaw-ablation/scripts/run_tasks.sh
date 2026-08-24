@@ -76,6 +76,7 @@ cat > "${RESULTS_DIR}/run_info.json" <<EOF
   "rollouts_per_task": ${ROLLOUTS_PER_TASK},
   "model_id": "${MODEL_ID}",
   "inject_skills": ${INJECT_SKILLS},
+  "evolve_epoch": ${EVOLVE_EPOCH:-0},
   "started_at": "$(date -Iseconds)"
 }
 EOF
