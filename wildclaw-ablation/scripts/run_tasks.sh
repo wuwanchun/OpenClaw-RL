@@ -17,6 +17,7 @@ SKILLS_SRC="${SKILLS_SRC:-${ABLATION_ROOT}/skills}"
 RUN_NAME="${RUN_NAME:-run}"
 RESULTS_DIR="${ABLATION_ROOT}/results/${RUN_NAME}"
 ROLLOUTS_PER_TASK="${ROLLOUTS_PER_TASK:-1}"
+JOBS="${JOBS:-1}"   # 并发任务数；>1 时同 rep 内任务并行（sglang 8B 扛 2-3 路没问题）
 
 # ---- resolve task list ----
 if [[ "${SPLIT_KEY}" == "train" || "${SPLIT_KEY}" == "eval" ]]; then
@@ -68,28 +69,43 @@ MARKER="${RESULTS_DIR}/.copy_marker"
 touch "${MARKER}"
 cd "${WCB_ROOT}"
 
+run_one() {
+  local task="$1"
+  # run_batch 在任务评分带 error（如 0 分）时也 sys.exit(1)；
+  # set -e 下不能让单个任务的失败终止整个批次 —— 失败轨迹同样是进化数据
+  python3 eval/run_batch.py \
+    --task "${task}" \
+    --models-config "${MODELS_CONFIG}" \
+    --model "${MODEL_ID}" \
+    "${LOBSTER_ARGS[@]}" || echo "[run_tasks] WARN: non-zero exit for ${task}, continuing"
+}
+
+collect_new_runs() {
+  # 只拷贝 marker 之后新增的 run 目录（output/ 会累积所有历史 run，全量 cp 是平方级膨胀）
+  [[ -d output ]] || return 0
+  while IFS= read -r d; do
+    [[ -n "${d}" ]] || continue
+    mkdir -p "${RESULTS_DIR}/raw/$(dirname "${d}")"
+    cp -r "output/${d}" "${RESULTS_DIR}/raw/${d}"
+  done < <(cd output && find . -mindepth 4 -maxdepth 4 -type d -newer "${MARKER}" | sed 's|^\./||')
+  touch "${MARKER}"
+}
+
 total=0
 for ((rep=1; rep<=ROLLOUTS_PER_TASK; rep++)); do
   while IFS= read -r task; do
     [[ -n "${task}" ]] || continue
     total=$((total + 1))
     echo "[run_tasks] (${total}, rep ${rep}/${ROLLOUTS_PER_TASK}) ${task}"
-    # run_batch 在任务评分带 error（如 0 分）时也 sys.exit(1)；
-    # set -e 下不能让单个任务的失败终止整个批次 —— 失败轨迹同样是进化数据
-    python3 eval/run_batch.py \
-      --task "${task}" \
-      --models-config "${MODELS_CONFIG}" \
-      --model "${MODEL_ID}" \
-      "${LOBSTER_ARGS[@]}" || echo "[run_tasks] WARN: non-zero exit for ${task}, continuing"
-    if [[ -d output ]]; then
-      while IFS= read -r d; do
-        [[ -n "${d}" ]] || continue
-        mkdir -p "${RESULTS_DIR}/raw/$(dirname "${d}")"
-        cp -r "output/${d}" "${RESULTS_DIR}/raw/${d}"
-      done < <(cd output && find . -mindepth 4 -maxdepth 4 -type d -newer "${MARKER}" | sed 's|^\./||')
-      touch "${MARKER}"
+    if (( JOBS > 1 )); then
+      run_one "${task}" &
+      while (( $(jobs -rp | wc -l) >= JOBS )); do sleep 2; done
+    else
+      run_one "${task}"
     fi
   done < "${LIST_FILE}"
+  wait   # 并发任务全部落盘后再统一拷贝
+  collect_new_runs
 done
 
 if [[ -f output/summary_all.json ]]; then

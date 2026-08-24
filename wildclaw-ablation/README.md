@@ -53,8 +53,10 @@ BG=1 bash scripts/w2_cycle.sh
 
 两个脚本都 source `scripts/env.sh`——目录布局（`ABLATION_ROOT` /
 `WCB_ROOT`）与全部环境变量（`SIZE` / `MODE` / `ROLLOUTS_PER_TASK` /
-`PORT` / `SKILL_LLM_*`）的默认值集中在那里，按需覆盖，例如
+`PORT` / `SKILL_LLM_*` / `JOBS`）的默认值集中在那里，按需覆盖，例如
 `SIZE=4b MODE=full DO_TRAIN=1 bash scripts/w2_cycle.sh`。
+`JOBS` 控制任务并发（默认 1 串行；8B@5090 建议 2-3），同一 rep 内并行跑完
+后统一做增量拷贝，采集阶段耗时约缩短为原来的 1/JOBS。
 
 ## 模型 endpoint
 

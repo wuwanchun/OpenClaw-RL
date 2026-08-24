@@ -21,6 +21,7 @@ export DOCKER_IMAGE="${DOCKER_IMAGE:-wildclawbench-ubuntu:v1.3}"
 export SIZE="${SIZE:-8b}"                         # 0p6b|4b|8b
 export MODE="${MODE:-skill_only}"                 # skill_only|full
 export ROLLOUTS_PER_TASK="${ROLLOUTS_PER_TASK:-4}"
+export JOBS="${JOBS:-1}"                              # 任务并发数；8B@5090 建议 2-3
 
 # ---- skill 进化器 LLM（默认复用本地 sglang；run_cycle.sh 里也有兜底） ----
 export SKILL_LLM_API_BASE="${SKILL_LLM_API_BASE:-http://127.0.0.1:${PORT}/v1}"
