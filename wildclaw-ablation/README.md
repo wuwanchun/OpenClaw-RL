@@ -126,6 +126,35 @@ bash scripts/up.sh down        # 停止当前服务
   又需要跑通含 judge 任务时临时用，正式数字尽量用强外部 judge。
   消融对比时四组必须用**同一个 judge**，否则组间不可比。
 
+## 循环检测（loopDetection，强烈建议开启）
+
+8B 在部分任务上会陷入重复读文件的死循环（实测单 run 754 轮 / 376 次工具调用），
+烧掉大部分 wall time 且产出为零。openclaw 内置 loopDetection，默认关闭。
+harness 只替换容器 openclaw.json 的 `models` 字段，所以把配置烘进镜像
+即可对所有变体一致生效（公平性不受影响）：
+
+```bash
+docker run --name wcb_loopguard wildclawbench-ubuntu:v1.3 bash -c "python3 - <<'PY'
+import json, pathlib
+p = pathlib.Path('/root/.openclaw/openclaw.json')
+c = json.loads(p.read_text()) if p.exists() else {}
+c.setdefault('tools', {})['loopDetection'] = {
+    'enabled': True, 'historySize': 30,
+    'warningThreshold': 8, 'criticalThreshold': 15,
+    'globalCircuitBreakerThreshold': 30,
+    'detectors': {'genericRepeat': True, 'knownPollNoProgress': True, 'pingPong': True},
+}
+p.write_text(json.dumps(c, indent=2))
+print('loopDetection:', c['tools']['loopDetection']['enabled'])
+PY"
+docker commit wcb_loopguard wildclawbench-ubuntu:v1.3-loopguard
+docker rm wcb_loopguard
+```
+
+`env.sh` 的 `DOCKER_IMAGE` 默认已指向 `wildclawbench-ubuntu:v1.3-loopguard`；
+没构建该镜像前改回 `v1.3`。注意阈值必须满足 warning < critical < breaker，
+否则 openclaw 配置校验直接拒绝启动。
+
 ## 评测与进化的尺寸参数
 
 `run_variant.sh` / `run_cycle.sh` 都认 `SIZE`（0p6b|4b|8b），和
