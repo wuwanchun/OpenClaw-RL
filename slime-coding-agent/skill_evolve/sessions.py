@@ -22,16 +22,58 @@ def _clip(text: Any, limit: int = _CLIP) -> str:
     return s if len(s) <= limit else s[:limit] + "..."
 
 
+def _coerce_content(content: Any) -> str:
+    """content 可能是 str、parts 列表（[{type:text,text:...}]）或空。"""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, dict):
+                if part.get("type") in ("toolCall", "tool_call", "tool_use"):
+                    continue  # 工具调用由 _render_message 单独渲染
+                if "text" in part:
+                    parts.append(str(part["text"]))
+                else:
+                    parts.append(json.dumps(part, ensure_ascii=False)[:200])
+            else:
+                parts.append(str(part))
+        return " ".join(parts)
+    return str(content or "")
+
+
+def _unwrap_message(obj: dict) -> dict | None:
+    """兼容两种 transcript schema：
+    - openclaw 实际落盘: {"type": "message", "message": {"role", "content", ...}}
+    - 扁平记录: {"role", "content", ...}
+    """
+    if obj.get("type") == "message" and isinstance(obj.get("message"), dict):
+        return obj["message"]
+    if "role" in obj:
+        return obj
+    return None
+
+
 def _render_message(msg: dict) -> str:
     role = msg.get("role", "?")
-    parts = [f"[{role}] {_clip(msg.get('content', ''))}"]
+    content = msg.get("content", "")
+    text = _coerce_content(content)
+    parts = [f"[{role}] {_clip(text)}"]
+    # OpenAI 风格 tool_calls
     for call in msg.get("tool_calls") or []:
         fn = call.get("function") if isinstance(call.get("function"), dict) else {}
         name = fn.get("name", call.get("name", "tool"))
         args = _clip(fn.get("arguments", call.get("arguments", "")), 200)
         parts.append(f"  -> {name}({args})")
-    if role == "tool":
-        parts = [f"[tool_result] {_clip(msg.get('content', ''))}"]
+    # parts 列表里内嵌的工具调用（openclaw/pi 风格）
+    if isinstance(content, list):
+        for part in content:
+            if isinstance(part, dict) and part.get("type") in ("toolCall", "tool_call", "tool_use"):
+                name = part.get("name", "tool")
+                args = _clip(part.get("arguments", part.get("input", "")), 200)
+                parts.append(f"  -> {name}({args})")
+    if role in ("tool", "toolResult", "tool_result"):
+        parts = [f"[tool_result] {_clip(text)}"]
     return "\n".join(parts)
 
 
@@ -59,7 +101,9 @@ def build_session(run_dir: Path, known_skills: list[str]) -> dict[str, Any] | No
         except json.JSONDecodeError:
             continue
         if isinstance(msg, dict):
-            messages.append(msg)
+            unwrapped = _unwrap_message(msg)
+            if unwrapped is not None:
+                messages.append(unwrapped)
 
     trajectory = "\n".join(_render_message(m) for m in messages[:80])
 
