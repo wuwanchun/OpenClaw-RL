@@ -141,9 +141,14 @@ SIZE=8b bash scripts/run_variant.sh base
 
 用官方 `--lobster-workspace` 机制：`run_variant.sh` 会把
 `slime-coding-agent/skills/generated/*.md` 组装成
-`results/<variant>/lobster_workspace/skills/<name>/SKILL.md`，
-harness 启动任务容器时整个工作区被拷进容器 `/root/`，
-openclaw 启动后即携带这套 skill 库。
+`results/<variant>/lobster_workspace/.openclaw/skills/<name>/SKILL.md`，
+harness 启动任务容器时整个工作区被拷进容器 `/root/`。
+
+注意镜像里的 openclaw（2026.3.11）实测只发现 **managed 位置**
+`/root/.openclaw/skills/`，不发现 `<workspace>/skills`（`/root/skills/`），
+所以 lobster 工作区里技能必须放在 `.openclaw/skills/` 子路径下；
+同理 WCB 的 `setup_skills`（任务自带技能，如 03 类的 slack 工具说明）
+默认目标 `/root/skills` 也要改到 `/root/.openclaw/skills` 才生效。
 
 注意：skill 只能来自**训练集轨迹**，评测集（本 benchmark 的任何任务）
 失败轨迹不得进 skill 库，否则 skill_only/rl_skill 的分数不可信。

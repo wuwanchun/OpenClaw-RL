@@ -36,24 +36,29 @@ else
 fi
 
 # ---- lobster workspace (skill variants) ----
+# 注意：注入后落在容器 /root/ 下；openclaw 2026.3.11 实测只发现
+# /root/.openclaw/skills（managed），不发现 /root/skills（workspace），
+# 所以技能要放在 .openclaw/skills/ 子路径。
 LOBSTER_ARGS=()
 if [[ "${INJECT_SKILLS}" == "1" ]]; then
   WORKSPACE_DIR="${RESULTS_DIR}/lobster_workspace"
   rm -rf "${WORKSPACE_DIR}"
-  mkdir -p "${WORKSPACE_DIR}/skills"
+  mkdir -p "${WORKSPACE_DIR}/.openclaw/skills"
   count=0
   if [[ -d "${SKILLS_SRC}" ]]; then
     # EvolvingSkillStore 布局: <skills_root>/<name>/SKILL.md
     for d in "${SKILLS_SRC}"/*/; do
       [[ -f "${d}SKILL.md" ]] || continue
       name="$(basename "${d}")"
-      mkdir -p "${WORKSPACE_DIR}/skills/${name}"
-      cp "${d}SKILL.md" "${WORKSPACE_DIR}/skills/${name}/SKILL.md"
+      mkdir -p "${WORKSPACE_DIR}/.openclaw/skills/${name}"
+      cp "${d}SKILL.md" "${WORKSPACE_DIR}/.openclaw/skills/${name}/SKILL.md"
       count=$((count + 1))
     done
   fi
   echo "[run_tasks] skills injected: ${count}"
-  LOBSTER_ARGS=(--lobster-workspace "${WORKSPACE_DIR}")
+  # run_batch 要求 --lobster-name 与 --lobster-workspace 成对（缺失会 sys.exit(1)）；
+  # 用 RUN_NAME 当名字，输出目录自动带变体前缀
+  LOBSTER_ARGS=(--lobster-workspace "${WORKSPACE_DIR}" --lobster-name "${RUN_NAME}")
 fi
 
 mkdir -p "${RESULTS_DIR}/raw"
