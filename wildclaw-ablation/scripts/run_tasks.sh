@@ -74,11 +74,13 @@ for ((rep=1; rep<=ROLLOUTS_PER_TASK; rep++)); do
     [[ -n "${task}" ]] || continue
     total=$((total + 1))
     echo "[run_tasks] (${total}, rep ${rep}/${ROLLOUTS_PER_TASK}) ${task}"
+    # run_batch 在任务评分带 error（如 0 分）时也 sys.exit(1)；
+    # set -e 下不能让单个任务的失败终止整个批次 —— 失败轨迹同样是进化数据
     python3 eval/run_batch.py \
       --task "${task}" \
       --models-config "${MODELS_CONFIG}" \
       --model "${MODEL_ID}" \
-      "${LOBSTER_ARGS[@]}"
+      "${LOBSTER_ARGS[@]}" || echo "[run_tasks] WARN: non-zero exit for ${task}, continuing"
     if [[ -d output ]]; then
       while IFS= read -r d; do
         [[ -n "${d}" ]] || continue
