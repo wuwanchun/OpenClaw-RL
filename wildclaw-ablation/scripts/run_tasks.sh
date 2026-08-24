@@ -57,6 +57,10 @@ if [[ "${INJECT_SKILLS}" == "1" ]]; then
 fi
 
 mkdir -p "${RESULTS_DIR}/raw"
+# 增量拷贝标记：output/ 会累积所有历史 run，逐任务全量 cp 是平方级膨胀，
+# 只拷 marker 之后新增的 run 目录（output/openclaw/<cat>/<task>/<run_id>）
+MARKER="${RESULTS_DIR}/.copy_marker"
+touch "${MARKER}"
 cd "${WCB_ROOT}"
 
 total=0
@@ -71,8 +75,12 @@ for ((rep=1; rep<=ROLLOUTS_PER_TASK; rep++)); do
       --model "${MODEL_ID}" \
       "${LOBSTER_ARGS[@]}"
     if [[ -d output ]]; then
-      mkdir -p "${RESULTS_DIR}/raw"
-      cp -r output/. "${RESULTS_DIR}/raw/"
+      while IFS= read -r d; do
+        [[ -n "${d}" ]] || continue
+        mkdir -p "${RESULTS_DIR}/raw/$(dirname "${d}")"
+        cp -r "output/${d}" "${RESULTS_DIR}/raw/${d}"
+      done < <(cd output && find . -mindepth 4 -maxdepth 4 -type d -newer "${MARKER}" | sed 's|^\./||')
+      touch "${MARKER}"
     fi
   done < "${LIST_FILE}"
 done
