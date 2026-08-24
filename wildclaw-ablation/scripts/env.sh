@@ -16,8 +16,8 @@ export WCB_ROOT="${WCB_ROOT:-${HOME}/Desktop/WildClawBench}"
 # ---- 模型服务 ----
 export PORT="${PORT:-8000}"
 # 循环检测镜像（推荐）：由 v1.3 派生，唯一区别是 openclaw.json 开了
-# tools.loopDetection（warning=8/critical=15/breaker=30），把死循环 run 提前熔断。
-# 构建方法见 README「循环检测」一节；没构建过就保持 v1.3。
+# tools.loopDetection（warning=2 / critical=3 / breaker=5，即重复 5 轮直接熔断），
+# 把死循环 run 提前终止。构建方法见 README「循环检测」一节；没构建过就保持 v1.3。
 export DOCKER_IMAGE="${DOCKER_IMAGE:-wildclawbench-ubuntu:v1.3-loopguard}"
 
 # ---- 消融运行参数（run_cycle.sh 用） ----

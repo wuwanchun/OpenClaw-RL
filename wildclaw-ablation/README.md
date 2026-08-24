@@ -140,8 +140,8 @@ p = pathlib.Path('/root/.openclaw/openclaw.json')
 c = json.loads(p.read_text()) if p.exists() else {}
 c.setdefault('tools', {})['loopDetection'] = {
     'enabled': True, 'historySize': 30,
-    'warningThreshold': 8, 'criticalThreshold': 15,
-    'globalCircuitBreakerThreshold': 30,
+    'warningThreshold': 2, 'criticalThreshold': 3,
+    'globalCircuitBreakerThreshold': 5,
     'detectors': {'genericRepeat': True, 'knownPollNoProgress': True, 'pingPong': True},
 }
 p.write_text(json.dumps(c, indent=2))
