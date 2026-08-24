@@ -63,6 +63,24 @@ if [[ "${INJECT_SKILLS}" == "1" ]]; then
 fi
 
 mkdir -p "${RESULTS_DIR}/raw"
+
+# 版本戳：每批 run 记录代码/镜像/并发配置，之后可按版本分组统计
+GIT_REV="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+WCB_STATE="$(git -C "${WCB_ROOT}" diff --quiet 2>/dev/null && echo clean || echo dirty)"
+cat > "${RESULTS_DIR}/run_info.json" <<EOF
+{
+  "git_rev": "${GIT_REV}",
+  "wcb_state": "${WCB_STATE}",
+  "docker_image": "${DOCKER_IMAGE:-unknown}",
+  "jobs": ${JOBS},
+  "rollouts_per_task": ${ROLLOUTS_PER_TASK},
+  "model_id": "${MODEL_ID}",
+  "inject_skills": ${INJECT_SKILLS},
+  "started_at": "$(date -Iseconds)"
+}
+EOF
+echo "[run_tasks] run_info: git=${GIT_REV} image=${DOCKER_IMAGE:-unknown} jobs=${JOBS} (wcb ${WCB_STATE})"
+
 # 增量拷贝标记：output/ 会累积所有历史 run，逐任务全量 cp 是平方级膨胀，
 # 只拷 marker 之后新增的 run 目录（output/openclaw/<cat>/<task>/<run_id>）
 MARKER="${RESULTS_DIR}/.copy_marker"
