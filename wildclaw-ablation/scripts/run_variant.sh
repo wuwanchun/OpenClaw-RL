@@ -34,10 +34,10 @@ echo "[variant] ${VARIANT} model=${MODEL_ID} skills=${INJECT_SKILLS}"
 
 if [[ -n "${2:-}" ]]; then
   # 冒烟：单任务直跑
-  RUN_NAME="${VARIANT}" \
+  RUN_NAME="${RUN_NAME:-${VARIANT}}" \
   bash "${ABLATION_ROOT}/scripts/run_tasks.sh" "${2}" "${MODEL_ID}" "${INJECT_SKILLS}"
 else
   # 正式：held-out eval 切分
-  RUN_NAME="${VARIANT}" \
+  RUN_NAME="${RUN_NAME:-${VARIANT}}" \
   bash "${ABLATION_ROOT}/scripts/run_tasks.sh" eval "${MODEL_ID}" "${INJECT_SKILLS}"
 fi

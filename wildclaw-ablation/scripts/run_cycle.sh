@@ -107,11 +107,23 @@ for variant in ${VARIANTS}; do
       continue
     fi
   fi
+  RUN_NAME_ARG=""
+  if [[ "${variant}" != "base" ]]; then
+    # 技能变体按进化代数分目录，base/v1/v2/v3 可直接横向对比
+    RUN_NAME_ARG="${variant}_e${EVOLVE_EPOCH}"
+  fi
   SIZE="${SIZE}" BASE_MODEL="${BASE_MODEL}" RL_MODEL="${RL_MODEL}" \
+    RUN_NAME="${RUN_NAME_ARG}" \
     bash "${ABLATION_ROOT}/scripts/run_variant.sh" "${variant}"
   if [[ "${variant}" == "base" ]]; then
-    printf 'split=%s\nsize=%s\ndate=%s\n' "${SPLIT_HASH}" "${SIZE}" "$(date -Iseconds)" \
-      > "${ABLATION_ROOT}/results/base/.eval_done"
+    # 只有真产出分数才写缓存标记——全部失败（如配置错误时期）不允许缓存
+    n_scores=$(find "${ABLATION_ROOT}/results/base/raw" -name score.json 2>/dev/null | wc -l)
+    if (( n_scores > 0 )); then
+      printf 'split=%s\nsize=%s\ndate=%s\n' "${SPLIT_HASH}" "${SIZE}" "$(date -Iseconds)" \
+        > "${ABLATION_ROOT}/results/base/.eval_done"
+    else
+      echo "[cycle] WARN: base eval 没有产出任何 score.json，不写缓存标记，下轮重跑"
+    fi
   fi
 done
 
