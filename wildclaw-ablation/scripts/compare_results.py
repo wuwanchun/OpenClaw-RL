@@ -44,9 +44,10 @@ def extract_scores(summary: dict) -> dict:
 def aggregate_raw(variant_dir: Path) -> dict[str, list[float]]:
     """Aggregate per-run score.json files under raw/**/score.json.
 
-    Layout: raw/openclaw/<category>/<task>/<run_id>/score.json.
-    Returns {task_stem: [scores...]}; task_stem = "<category>_<task_dir>",
-    与 split.json 里任务 md 的文件名 stem 一致。
+    Layout: raw/openclaw/<category>/<task_dir>/<run_id>/score.json，
+    其中 task_dir 已是全名（如 01_Productivity_Flow_task_6_calendar_scheduling），
+    与 split.json 里任务 md 的文件名 stem 一致，直接作 key。
+    以 "openclaw" 目录为锚点取层级，对前缀深度鲁棒。
     """
     per_task: dict[str, list[float]] = {}
     for score_path in variant_dir.rglob("score.json"):
@@ -58,14 +59,17 @@ def aggregate_raw(variant_dir: Path) -> dict[str, list[float]]:
         if score is None:
             continue
         parts = score_path.parts
-        category = parts[-4] if len(parts) >= 4 else "unknown"
-        task = parts[-3] if len(parts) >= 3 else score_path.parent.name
-        per_task.setdefault(f"{category}_{task}", []).append(float(score))
+        task_key = score_path.parent.parent.name  # <task_dir>
+        if "openclaw" in parts:
+            i = parts.index("openclaw")
+            if i + 2 < len(parts):
+                task_key = parts[i + 2]
+        per_task.setdefault(task_key, []).append(float(score))
     return per_task
 
 
 def macro_by_category(task_means: dict[str, float]) -> dict:
-    """task_stem 均值 -> {category: mean, overall: macro mean}。"""
+    """task key（含类别前缀的全名）-> {category: mean, overall: macro mean}。"""
     per_cat: dict[str, list[float]] = {}
     for stem, mean in task_means.items():
         cat = stem.split("_task_")[0]
@@ -104,14 +108,11 @@ def main() -> None:
     for variant_dir in sorted(p for p in root.iterdir() if p.is_dir()):
         if not variant_dir.name.startswith(VARIANT_PREFIXES):
             continue
-        summary = load_summary(variant_dir / "summary_all.json")
-        scores = extract_scores(summary)
+        # raw 优先：summary_all.json 可能是陈旧批次留下的，raw/**/score.json 是实时真相
+        per_task = aggregate_raw(variant_dir)
+        scores: dict = {}
         row_extra: dict = {}
-        if not scores:
-            # 单任务模式不产生 summary_all.json，从 raw/**/score.json 聚合
-            per_task = aggregate_raw(variant_dir)
-            if not per_task:
-                continue
+        if per_task:
             # per-task mean across rollouts first，再 macro over tasks
             task_means = {k: sum(v) / len(v) for k, v in per_task.items()}
             scores = macro_by_category(task_means)
@@ -121,6 +122,8 @@ def main() -> None:
                     if subset:
                         row_extra[f"overall_{label}"] = round(
                             sum(subset.values()) / len(subset), 4)
+        if not scores:
+            scores = extract_scores(load_summary(variant_dir / "summary_all.json"))
         if not scores:
             continue  # 跳过 logs/ 等无分数目录
         scores.update(row_extra)
