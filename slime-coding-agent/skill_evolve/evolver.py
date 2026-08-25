@@ -136,6 +136,7 @@ def evolve_group(
     sessions: list[dict[str, Any]],
     current_skill: str | None,
     history: list[dict],
+    feedback: str | None = None,
 ) -> dict[str, Any] | None:
     """Return {action, skill_md, evidence, rationale} or None when skipping."""
     is_new = current_skill is None
@@ -157,6 +158,14 @@ def evolve_group(
         f"## History\n{history_text}\n\n"
         f"## Sessions\n{_format_evidence(sessions)}"
     )
+    if feedback:
+        user += (
+            f"\n\n## Previous candidate was REJECTED by the verifier\n"
+            f"Reason: {feedback}\n"
+            f"Rewrite the skill addressing this reason: ground every step in the "
+            f"session evidence (quote the actual commands/paths/errors seen), "
+            f"and cut any step the evidence does not support."
+        )
     raw = llm.chat(_SYSTEM, user)
     LAST_LLM_STATUS[name] = {
         "configured": True,

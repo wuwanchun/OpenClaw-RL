@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -75,41 +76,49 @@ def main() -> None:
         "decisions": [],
     }
 
+    max_retries = int(os.getenv("EVOLVE_MAX_RETRIES", "2"))
+
     for name, group in sorted(groups.items()):
         is_no_skill = name == grouper.NO_SKILL
         current = None if is_no_skill else store.current(name)
         history = [] if is_no_skill else store.history(name)
 
-        candidate = evolve_group(name, group, current, history)
-        if candidate is None:
-            report["decisions"].append(
-                {"group": name, "action": "skip", "llm": LAST_LLM_STATUS.get(name)}
-            )
-            continue
+        feedback = None
+        for attempt in range(1 + max_retries):
+            candidate = evolve_group(name, group, current, history, feedback=feedback)
+            if candidate is None:
+                report["decisions"].append(
+                    {"group": name, "action": "skip", "llm": LAST_LLM_STATUS.get(name)}
+                )
+                break
 
-        # 候选技能+证据落盘，审查"进化器造了什么、verifier 拒了什么"
-        debug_dir = report_path.parent / "evolve_debug"
-        debug_dir.mkdir(parents=True, exist_ok=True)
-        (debug_dir / f"candidate_{_slug(name)}.md").write_text(
-            str(candidate.get("skill_md", "")), encoding="utf-8")
-        (debug_dir / f"candidate_{_slug(name)}_evidence.txt").write_text(
-            str(candidate.get("evidence", "")), encoding="utf-8")
+            # 候选技能+证据落盘，审查"进化器造了什么、verifier 拒了什么"
+            debug_dir = report_path.parent / "evolve_debug"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            tag = f"candidate_{_slug(name)}_a{attempt + 1}"
+            (debug_dir / f"{tag}.md").write_text(
+                str(candidate.get("skill_md", "")), encoding="utf-8")
+            (debug_dir / f"{tag}_evidence.txt").write_text(
+                str(candidate.get("evidence", "")), encoding="utf-8")
 
-        gate = verify(candidate, group)
-        if not gate["accepted"]:
+            gate = verify(candidate, group)
+            if not gate["accepted"]:
+                report["decisions"].append(
+                    {"group": name, "action": candidate["action"], "verifier": "reject",
+                     "attempt": attempt + 1, "reason": gate["reason"]}
+                )
+                feedback = gate["reason"]  # 拒绝理由回喂，下一稿带着它重写
+                continue
+
+            skill_name = name if not is_no_skill else _slug(f"wcb-recovery-{len(store.list_skills())+1}")
+            skill_md = _normalize_skill_md(candidate["skill_md"], skill_name)
+            version = store.publish(skill_name, skill_md, candidate["evidence"])
             report["decisions"].append(
-                {"group": name, "action": candidate["action"], "verifier": "reject",
+                {"group": name, "action": candidate["action"], "verifier": "accept",
+                 "attempt": attempt + 1, "skill": skill_name, "version": version,
                  "reason": gate["reason"]}
             )
-            continue
-
-        skill_name = name if not is_no_skill else _slug(f"wcb-recovery-{len(store.list_skills())+1}")
-        skill_md = _normalize_skill_md(candidate["skill_md"], skill_name)
-        version = store.publish(skill_name, skill_md, candidate["evidence"])
-        report["decisions"].append(
-            {"group": name, "action": candidate["action"], "verifier": "accept",
-             "skill": skill_name, "version": version, "reason": gate["reason"]}
-        )
+            break
 
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False, indent=2))
