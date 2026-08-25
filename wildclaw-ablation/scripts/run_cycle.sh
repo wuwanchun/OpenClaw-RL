@@ -41,7 +41,14 @@ python3 "${ABLATION_ROOT}/scripts/make_split.py" \
   ${WCB_CATEGORIES:+--categories ${WCB_CATEGORIES}} \
   --output "${ABLATION_ROOT}/configs/split.json"
 
-echo "== [2/6] collect train-split trajectories (base model) =="
+# 进化轮数在采集前确定：每轮轨迹独立目录（collect_e<N>），
+# 进化器只读当轮数据——避免历代失败重复积累导致重复造技能
+EPOCH_FILE="${ABLATION_ROOT}/skills/.evolve_epoch"
+EVOLVE_EPOCH=$(( $(cat "${EPOCH_FILE}" 2>/dev/null || echo 0) + 1 ))
+export EVOLVE_EPOCH
+COLLECT_NAME="collect_e${EVOLVE_EPOCH}"
+
+echo "== [2/6] collect train-split trajectories (base model, epoch ${EVOLVE_EPOCH}) =="
 case "${SIZE}" in
   0p6b) SIZE_NAME="qwen3-0p6b" ;;
   4b)   SIZE_NAME="qwen3-4b-instruct" ;;
@@ -56,14 +63,10 @@ if ls "${ABLATION_ROOT}/skills"/*/SKILL.md >/dev/null 2>&1; then
   COLLECT_INJECT=1
   echo "[cycle] skills 库非空，采集携带当前技能（多轮进化模式）"
 fi
-RUN_NAME=collect_base ROLLOUTS_PER_TASK="${ROLLOUTS_PER_TASK}" \
+RUN_NAME="${COLLECT_NAME}" ROLLOUTS_PER_TASK="${ROLLOUTS_PER_TASK}" \
   bash "${ABLATION_ROOT}/scripts/run_tasks.sh" train "local/${COLLECT_MODEL}" "${COLLECT_INJECT}"
 
-echo "== [3/6] skill evolution round =="
-# 进化轮数计数：skills/.evolve_epoch 持久化，每轮 +1；报告按轮数留档
-EPOCH_FILE="${ABLATION_ROOT}/skills/.evolve_epoch"
-EVOLVE_EPOCH=$(( $(cat "${EPOCH_FILE}" 2>/dev/null || echo 0) + 1 ))
-export EVOLVE_EPOCH
+echo "== [3/6] skill evolution round ${EVOLVE_EPOCH} =="
 # 进化器 LLM 默认复用本地 sglang 服务；不配则只剩启发式兜底（易全 skip）
 export SKILL_LLM_API_BASE="${SKILL_LLM_API_BASE:-http://127.0.0.1:${PORT:-8000}/v1}"
 export SKILL_LLM_MODEL="${SKILL_LLM_MODEL:-${COLLECT_MODEL}}"
@@ -71,7 +74,7 @@ echo "[cycle] evolver LLM: ${SKILL_LLM_API_BASE} model=${SKILL_LLM_MODEL} epoch=
 
 PYTHONPATH="${REPO_ROOT}/slime-coding-agent${PYTHONPATH:+:${PYTHONPATH}}" \
 python3 -m skill_evolve.run_round \
-  --raw-dir "${ABLATION_ROOT}/results/collect_base/raw" \
+  --raw-dir "${ABLATION_ROOT}/results/${COLLECT_NAME}/raw" \
   --skills-dir "${ABLATION_ROOT}/skills" \
   --report "${ABLATION_ROOT}/results/evolve_report.json"
 echo "${EVOLVE_EPOCH}" > "${EPOCH_FILE}"
@@ -81,7 +84,7 @@ cp "${ABLATION_ROOT}/results/evolve_report.json" \
 if [[ "${DO_TRAIN}" == "1" ]]; then
   echo "== [4/6] offline GRPO training =="
   python3 "${ABLATION_ROOT}/scripts/wcb_to_rl_dataset.py" \
-    --raw-dir "${ABLATION_ROOT}/results/collect_base/raw" \
+    --raw-dir "${ABLATION_ROOT}/results/${COLLECT_NAME}/raw" \
     --model "${HF_CKPT:?HF_CKPT required for training}" \
     --output "${ABLATION_ROOT}/results/rl_data/{rollout_id}.pt" \
     --reward-mode raw
