@@ -82,7 +82,10 @@ def _detect_skills(text: str, known_skills: list[str]) -> set[str]:
     for name in known_skills:
         if name and name in text:
             found.add(name)
-    for match in re.findall(r"skills/([A-Za-z0-9_.-]+)/SKILL\.md", text):
+    # 只认 managed 路径的引用（.openclaw/skills/<name>/SKILL.md）。
+    # 宽松正则会把 agent 在任务里自建的路径（如 /root/skills/...，
+    # 06_task_10 这类注入测试任务）误判为"被引用的技能"，污染技能库。
+    for match in re.findall(r"\.openclaw/skills/([A-Za-z0-9_.-]+)/SKILL\.md", text):
         found.add(match)
     return found
 

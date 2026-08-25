@@ -44,7 +44,8 @@ def _evidence_tokens(evidence: str) -> set[str]:
 def verify(candidate: dict[str, Any], sessions: list[dict[str, Any]]) -> dict[str, Any]:
     """Return {accepted: bool, score, reason}."""
     skill_md = str(candidate.get("skill_md", ""))
-    evidence_text = "\n".join(s.get("trajectory", "")[:800] for s in sessions[:4])
+    # 证据给足一点：8B 当 verifier 时证据太薄会乱拒（"no direct evidence"）
+    evidence_text = "\n".join(s.get("trajectory", "")[:1500] for s in sessions[:6])
 
     # 结构门：SKILL.md 必须带 YAML frontmatter（name/description），
     # 否则 openclaw 加载时直接忽略，技能注入等于零
