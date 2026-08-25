@@ -15,6 +15,14 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)/env.sh"
 source "${WCB_ROOT}/.venv/bin/activate"
 cd "${WCB_ROOT}"
 
+# 一个时刻只允许一个 cycle：起新的之前清掉旧的（含其 run_tasks/run_batch 子进程）
+if pgrep -f "run_cycle.sh" | grep -v $$ >/dev/null 2>&1; then
+  echo "[w2] 发现正在运行的旧 cycle，先停掉"
+  pkill -f "run_cycle.sh" 2>/dev/null || true
+  pkill -f "run_tasks.sh" 2>/dev/null || true
+  sleep 2
+fi
+
 LOG_DIR="${ABLATION_ROOT}/results/logs"
 mkdir -p "${LOG_DIR}"
 LOG_FILE="${LOG_DIR}/cycle_${SIZE}_${MODE}_$(date +%Y%m%d_%H%M).log"
