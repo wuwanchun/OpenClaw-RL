@@ -82,6 +82,30 @@ cat > "${RESULTS_DIR}/run_info.json" <<EOF
 EOF
 echo "[run_tasks] run_info: git=${GIT_REV} image=${DOCKER_IMAGE:-unknown} jobs=${JOBS} (wcb ${WCB_STATE})"
 
+# 上下文体积熔断：镜像里的 openclaw（2026.3.11）不认 contextTokens，
+# 用 transcript 体积做代理（90% × 32k token ≈ 150KB jsonl）。超限的容器强杀，
+# 该任务按 0 分记录，不阻塞其它任务。TRANSCRIPT_CAP_BYTES=0 关闭。
+TRANSCRIPT_CAP_BYTES="${TRANSCRIPT_CAP_BYTES:-150000}"
+watchdog_loop() {
+  while sleep 15; do
+    for c in $(docker ps --format '{{.Names}}' 2>/dev/null | grep -E '^[0-9]+_task_'); do
+      size=$(docker exec "$c" stat -c%s /root/.openclaw/agents/main/sessions/chat.jsonl 2>/dev/null || echo 0)
+      [[ "${size}" =~ ^[0-9]+$ ]] || size=0
+      if (( size > TRANSCRIPT_CAP_BYTES )); then
+        echo "[watchdog] ${c}: transcript ${size}B > ${TRANSCRIPT_CAP_BYTES}B，掐死 agent 进程（容器保留，轨迹落盘、照常判分）"
+        docker exec "$c" pkill -f "openclaw agent" 2>/dev/null || true
+      fi
+    done
+  done
+}
+WATCHDOG_PID=""
+if [[ "${TRANSCRIPT_CAP_BYTES}" != "0" ]]; then
+  watchdog_loop &
+  WATCHDOG_PID=$!
+  trap '[[ -n "${WATCHDOG_PID}" ]] && kill "${WATCHDOG_PID}" 2>/dev/null || true' EXIT
+  echo "[run_tasks] watchdog on: transcript cap ${TRANSCRIPT_CAP_BYTES}B"
+fi
+
 # 增量拷贝标记：output/ 会累积所有历史 run，逐任务全量 cp 是平方级膨胀，
 # 只拷 marker 之后新增的 run 目录（output/openclaw/<cat>/<task>/<run_id>）
 MARKER="${RESULTS_DIR}/.copy_marker"

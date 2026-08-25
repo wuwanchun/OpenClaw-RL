@@ -9,43 +9,37 @@
           "id": "qwen3-0p6b-base",
           "name": "qwen3-0p6b-base",
           "contextWindow": 32768,
-          "maxTokens": 8192,
-          "contextTokens": 29000
+          "maxTokens": 8192
         },
         {
           "id": "qwen3-0p6b-rl",
           "name": "qwen3-0p6b-rl",
           "contextWindow": 32768,
-          "maxTokens": 8192,
-          "contextTokens": 29000
+          "maxTokens": 8192
         },
         {
           "id": "qwen3-4b-instruct-base",
           "name": "qwen3-4b-instruct-base",
           "contextWindow": 32768,
-          "maxTokens": 8192,
-          "contextTokens": 29000
+          "maxTokens": 8192
         },
         {
           "id": "qwen3-4b-instruct-rl",
           "name": "qwen3-4b-instruct-rl",
           "contextWindow": 32768,
-          "maxTokens": 8192,
-          "contextTokens": 29000
+          "maxTokens": 8192
         },
         {
           "id": "qwen3-8b-base",
           "name": "qwen3-8b-base",
           "contextWindow": 32768,
-          "maxTokens": 8192,
-          "contextTokens": 29000
+          "maxTokens": 8192
         },
         {
           "id": "qwen3-8b-rl",
           "name": "qwen3-8b-rl",
           "contextWindow": 32768,
-          "maxTokens": 8192,
-          "contextTokens": 29000
+          "maxTokens": 8192
         }
       ]
     }
