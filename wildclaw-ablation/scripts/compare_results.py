@@ -77,7 +77,11 @@ def main() -> None:
     table = {}
     if not root.is_dir():
         root.mkdir(parents=True, exist_ok=True)
+    # 只有真正的评测变体进表；collect_* 是训练集采集（进化原料），logs 等是杂物
+    VARIANT_PREFIXES = ("base", "skill_only", "rl_only", "rl_skill", "rl_opd")
     for variant_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+        if not variant_dir.name.startswith(VARIANT_PREFIXES):
+            continue
         summary = load_summary(variant_dir / "summary_all.json")
         scores = extract_scores(summary)
         if not scores:
