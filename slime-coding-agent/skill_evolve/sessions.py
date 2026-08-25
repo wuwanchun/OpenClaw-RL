@@ -111,10 +111,19 @@ def build_session(run_dir: Path, known_skills: list[str]) -> dict[str, Any] | No
     trajectory = "\n".join(_render_message(m) for m in messages[:80])
 
     score = None
+    failed_items: list[str] = []
     score_path = run_dir / "score.json"
     if score_path.is_file():
         try:
-            score = json.loads(score_path.read_text(encoding="utf-8")).get("overall_score")
+            data = json.loads(score_path.read_text(encoding="utf-8"))
+            score = data.get("overall_score")
+            # 细粒度 rubric：哪些评分项挂了，是"该学什么"的最直接信号
+            failed_items = sorted(
+                k for k, v in data.items()
+                if isinstance(v, (int, float)) and v < 1.0
+                and k not in ("overall_score", "weighted_score", "points_earned",
+                              "kw_earned", "llm_earned", "tool_earned", "safety_earned")
+            )[:12]
         except json.JSONDecodeError:
             score = None
 
@@ -126,6 +135,7 @@ def build_session(run_dir: Path, known_skills: list[str]) -> dict[str, Any] | No
         "session_id": run_dir.name,
         "task_id": f"{category}/{task_id}",
         "score": score,
+        "failed_items": failed_items,
         "num_turns": len(messages),
         "trajectory": trajectory,
         "skills_referenced": _detect_skills(full_text, known_skills),

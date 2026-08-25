@@ -88,11 +88,14 @@ def _format_evidence(sessions: list[dict[str, Any]], max_sessions: int = 8) -> s
     blocks = []
     for s in sessions[:max_sessions]:
         score = s.get("score")
-        blocks.append(
+        failed = s.get("failed_items") or []
+        header = (
             f"--- session {s.get('session_id')} task={s.get('task_id')} "
-            f"score={score if score is not None else 'unknown'} ---\n"
-            f"{s.get('trajectory', '')[:2500]}"
+            f"score={score if score is not None else 'unknown'} ---"
         )
+        if failed:
+            header += f"\n未通过的评分项: {', '.join(failed)}"
+        blocks.append(f"{header}\n{s.get('trajectory', '')[:2500]}")
     return "\n\n".join(blocks)
 
 
