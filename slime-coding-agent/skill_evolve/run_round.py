@@ -76,7 +76,7 @@ def main() -> None:
         "decisions": [],
     }
 
-    max_retries = int(os.getenv("EVOLVE_MAX_RETRIES", "2"))
+    max_retries = int(os.getenv("EVOLVE_MAX_RETRIES", "5"))
 
     for name, group in sorted(groups.items()):
         is_no_skill = name == grouper.NO_SKILL
