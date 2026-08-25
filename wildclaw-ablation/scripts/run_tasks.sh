@@ -82,10 +82,10 @@ cat > "${RESULTS_DIR}/run_info.json" <<EOF
 EOF
 echo "[run_tasks] run_info: git=${GIT_REV} image=${DOCKER_IMAGE:-unknown} jobs=${JOBS} (wcb ${WCB_STATE})"
 
-# 上下文体积熔断：镜像里的 openclaw（2026.3.11）不认 contextTokens，
-# 用 transcript 体积做代理（90% × 32k token ≈ 150KB jsonl）。超限的容器强杀，
-# 该任务按 0 分记录，不阻塞其它任务。TRANSCRIPT_CAP_BYTES=0 关闭。
-TRANSCRIPT_CAP_BYTES="${TRANSCRIPT_CAP_BYTES:-150000}"
+# 上下文体积熔断：默认关闭。如需启用（按 transcript 体积掐断失控 run），
+# 用 TRANSCRIPT_CAP_BYTES=150000 这样的值开启；0 = 关闭。
+# 背景：镜像里的 openclaw 2026.3.11 不认 contextTokens，这是替代品。
+TRANSCRIPT_CAP_BYTES="${TRANSCRIPT_CAP_BYTES:-0}"
 watchdog_loop() {
   while sleep 15; do
     for c in $(docker ps --format '{{.Names}}' 2>/dev/null | grep -E '^[0-9]+_task_'); do
