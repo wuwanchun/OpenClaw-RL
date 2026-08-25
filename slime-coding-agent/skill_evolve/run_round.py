@@ -87,6 +87,14 @@ def main() -> None:
             )
             continue
 
+        # 候选技能+证据落盘，审查"进化器造了什么、verifier 拒了什么"
+        debug_dir = report_path.parent / "evolve_debug"
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        (debug_dir / f"candidate_{_slug(name)}.md").write_text(
+            str(candidate.get("skill_md", "")), encoding="utf-8")
+        (debug_dir / f"candidate_{_slug(name)}_evidence.txt").write_text(
+            str(candidate.get("evidence", "")), encoding="utf-8")
+
         gate = verify(candidate, group)
         if not gate["accepted"]:
             report["decisions"].append(
