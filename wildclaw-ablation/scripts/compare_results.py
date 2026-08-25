@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Aggregate WildClawBench ablation results across variants."""
+"""Aggregate WildClawBench ablation results across variants.
+
+默认输出: variant × (overall, per-category)。
+带 --split configs/split.json 时额外输出 overall_train / overall_eval 两列,
+把"train 集(参与过技能学习, 仅供参考)"和"eval 集(held-out, 可信口径)"分开展示。
+"""
 
 from __future__ import annotations
 
@@ -36,14 +41,14 @@ def extract_scores(summary: dict) -> dict:
     return out
 
 
-def aggregate_raw(variant_dir: Path) -> dict:
-    """Fallback: aggregate per-run score.json files under raw/**/score.json.
+def aggregate_raw(variant_dir: Path) -> dict[str, list[float]]:
+    """Aggregate per-run score.json files under raw/**/score.json.
 
     Layout: raw/openclaw/<category>/<task>/<run_id>/score.json.
-    Per-task mean across rollouts first, then macro-average across tasks
-    (so tasks with more rollouts don't dominate).
+    Returns {task_stem: [scores...]}; task_stem = "<category>_<task_dir>",
+    与 split.json 里任务 md 的文件名 stem 一致。
     """
-    per_task: dict[tuple[str, str], list[float]] = {}
+    per_task: dict[str, list[float]] = {}
     for score_path in variant_dir.rglob("score.json"):
         try:
             data = json.loads(score_path.read_text(encoding="utf-8"))
@@ -55,26 +60,43 @@ def aggregate_raw(variant_dir: Path) -> dict:
         parts = score_path.parts
         category = parts[-4] if len(parts) >= 4 else "unknown"
         task = parts[-3] if len(parts) >= 3 else score_path.parent.name
-        per_task.setdefault((category, task), []).append(float(score))
+        per_task.setdefault(f"{category}_{task}", []).append(float(score))
+    return per_task
 
+
+def macro_by_category(task_means: dict[str, float]) -> dict:
+    """task_stem 均值 -> {category: mean, overall: macro mean}。"""
     per_cat: dict[str, list[float]] = {}
-    for (cat, _task), scores in per_task.items():
-        per_cat.setdefault(cat, []).append(round(sum(scores) / len(scores), 4))
-
+    for stem, mean in task_means.items():
+        cat = stem.split("_task_")[0]
+        per_cat.setdefault(cat, []).append(mean)
     out = {cat: round(sum(v) / len(v), 4) for cat, v in per_cat.items()}
     if out:
         out["overall"] = round(sum(out.values()) / len(out), 4)
     return out
 
 
+def load_split_tasks(split_path: Path) -> tuple[set[str], set[str]]:
+    data = json.loads(split_path.read_text(encoding="utf-8"))
+    to_stems = lambda lst: {Path(p).stem for p in lst}
+    return to_stems(data.get("train", [])), to_stems(data.get("eval", []))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--results-dir", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--split", default=None,
+                        help="split.json 路径；提供后按 train/eval 分开展示 overall")
     args = parser.parse_args()
 
+    train_stems: set[str] = set()
+    eval_stems: set[str] = set()
+    if args.split:
+        train_stems, eval_stems = load_split_tasks(Path(args.split))
+
     root = Path(args.results_dir)
-    table = {}
+    table: dict[str, dict] = {}
     if not root.is_dir():
         root.mkdir(parents=True, exist_ok=True)
     # 只有真正的评测变体进表；collect_* 是训练集采集（进化原料），logs 等是杂物
@@ -84,28 +106,50 @@ def main() -> None:
             continue
         summary = load_summary(variant_dir / "summary_all.json")
         scores = extract_scores(summary)
+        row_extra: dict = {}
         if not scores:
             # 单任务模式不产生 summary_all.json，从 raw/**/score.json 聚合
-            scores = aggregate_raw(variant_dir)
+            per_task = aggregate_raw(variant_dir)
+            if not per_task:
+                continue
+            # per-task mean across rollouts first，再 macro over tasks
+            task_means = {k: sum(v) / len(v) for k, v in per_task.items()}
+            scores = macro_by_category(task_means)
+            if args.split:
+                for label, stems in (("train", train_stems), ("eval", eval_stems)):
+                    subset = {k: v for k, v in task_means.items() if k in stems}
+                    if subset:
+                        row_extra[f"overall_{label}"] = round(
+                            sum(subset.values()) / len(subset), 4)
         if not scores:
             continue  # 跳过 logs/ 等无分数目录
+        scores.update(row_extra)
         table[variant_dir.name] = scores
 
-    categories = sorted({cat for scores in table.values() for cat in scores if cat != "overall"})
+    split_cols = ["overall_train", "overall_eval"] if args.split else []
+    categories = sorted({cat for scores in table.values() for cat in scores
+                         if cat not in ("overall", *split_cols)})
     rows = []
     for variant, scores in table.items():
         row = {"variant": variant, "overall": scores.get("overall")}
+        for col in split_cols:
+            row[col] = scores.get(col)
         for cat in categories:
             row[cat] = scores.get(cat)
         rows.append(row)
 
     result = {"categories": categories, "rows": rows}
+    if args.split:
+        result["split_note"] = (
+            "overall_train = 参与过技能学习的任务（仅供参考）；"
+            "overall_eval = held-out 任务（可信口径）"
+        )
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # also print a compact table
-    header = ["variant", "overall", *categories]
+    header = ["variant", "overall", *split_cols, *categories]
     print("\t".join(header))
     for row in rows:
         print("\t".join(str(row.get(col, "")) for col in header))
