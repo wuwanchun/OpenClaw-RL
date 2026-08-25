@@ -49,8 +49,15 @@ case "${SIZE}" in
   *) echo "unknown SIZE: ${SIZE} (0p6b|4b|8b)" >&2; exit 2 ;;
 esac
 COLLECT_MODEL="${BASE_MODEL:-${SIZE_NAME}-base}"
+# 多轮进化：技能库非空后，采集携带当前技能——否则每轮看到的都是同样的裸模型失败，
+# 已有技能永远收不到 refine 信号
+COLLECT_INJECT=0
+if ls "${ABLATION_ROOT}/skills"/*/SKILL.md >/dev/null 2>&1; then
+  COLLECT_INJECT=1
+  echo "[cycle] skills 库非空，采集携带当前技能（多轮进化模式）"
+fi
 RUN_NAME=collect_base ROLLOUTS_PER_TASK="${ROLLOUTS_PER_TASK}" \
-  bash "${ABLATION_ROOT}/scripts/run_tasks.sh" train "local/${COLLECT_MODEL}" 0
+  bash "${ABLATION_ROOT}/scripts/run_tasks.sh" train "local/${COLLECT_MODEL}" "${COLLECT_INJECT}"
 
 echo "== [3/6] skill evolution round =="
 # 进化轮数计数：skills/.evolve_epoch 持久化，每轮 +1；报告按轮数留档
